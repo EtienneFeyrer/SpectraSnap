@@ -7,7 +7,7 @@ This repository contains Python code to train and test the JESTR model.
 ## **Overview**
 JESTR learns a joint embedding of spectra and candidate molecules to rank candidates for untargeted metabolomics annotation. We provide:
 - **Pretrained weights** for the MassSpecGym dataset
-- **Sample data** and a **demo notebook** for quick evaluation
+- **Sample data** from MassSpecGym(original dataset code modified to fir Python 3.9) and a **demo notebook** for quick evaluation
 - **Training and testing scripts**
 
 JESTR uses [PyTorch](https://pytorch.org). The released weights were trained on NVIDIA A100 (CUDA 11.8). Please ensure your environment supports GPU execution.

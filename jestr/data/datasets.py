@@ -185,3 +185,18 @@ class ExpandedRetrievalDataset:
         item['cand_smiles'] = cand_smiles
         item['label'] = label
         return item
+
+class PrecomputeCandDataset(ExpandedRetrievalDataset):
+    '''Dataset for precomputing candidate embeddings. Each item is a list of candidate molecules.'''
+    # TODO: check weather this class is neccessary or using the massspec Precomputedataset is enough
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.cand_smiles = list(set([cand for _, cand, _ in self.spec_cand]))
+    
+    def __len__(self):
+        return len(self.cand_smiles)
+    
+    def __getitem__(self, i):
+        cand_smiles = self.cand_smiles[i]
+        item = {'cand': self.mol_transform(cand_smiles), 'cand_smiles': cand_smiles}
+        return item

@@ -15,6 +15,8 @@ class Stage(Enum):
     TRAIN = 'train'
     VAL = 'val'
     TEST = 'test'
+    PRECOMPUTE = 'precompute'
+    ONLINE_TEST = 'online_test'
     NONE = 'none'
 
     def to_pref(self) -> str:
@@ -71,6 +73,16 @@ class MassSpecGymModel(pl.LightningModule, ABC):
         self, batch: dict, batch_idx: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         return self.step(batch, stage=Stage.TEST)
+    
+    def precompute_step(
+        self, batch: dict, batch_idx: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return self.step(batch, stage=Stage.PRECOMPUTE)
+    
+    def online_test_step(
+        self, batch: dict, batch_idx: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return self.step(batch, stage=Stage.ONLINE_TEST)
 
     @abstractmethod
     def on_batch_end(

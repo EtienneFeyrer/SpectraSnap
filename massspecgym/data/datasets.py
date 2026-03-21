@@ -223,3 +223,69 @@ class RetrievalDataset(MassSpecDataset):
 
 
 # TODO: Datasets for unlabeled data.
+class UnLabeledCandDataset(MassSpecDataset):
+    """
+    Dataset containing an unlabeled set of Candidates.
+    """
+    def __init__(
+        self,
+        mol_label_transform: MolTransform = MolToInChIKey(),
+        candidates_pth: T.Optional[T.Union[Path, str]] = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+
+        self.candidates_pth = candidates_pth
+        self.mol_label_transform = mol_label_transform
+
+        # Download candidates from HuggigFace Hub if not a path to exisiting file is passed
+        if self.candidates_pth is None:
+            self.candidates_pth = utils.hugging_face_download(
+                "molecules/MassSpecGym_retrieval_candidates_mass.json"
+            )
+        elif isinstance(self.candidates_pth, str):
+            if Path(self.candidates_pth).is_file():
+                self.candidates_pth = Path(self.candidates_pth)
+            else:
+                self.candidates_pth = utils.hugging_face_download(candidates_pth)
+        
+        # Read candidates_pth from json to dict: SMILES -> respective candidate SMILES
+        with open(self.candidates_pth, "r") as file:
+            # TODO: the candidates file should be adjusted so the candidates
+            # are no longer labeled (candidates have to be at the beginning of each list)
+            self.candidates = json.load(file)
+
+
+    def __getitem__(self, i) -> dict:
+        item = super().__getitem__(i, transform_mol=False)
+
+        # Save the original SMILES representation of the query molecule (for evaluation)
+        item["smiles"] = item["mol"]
+
+        # Get candidates
+        if item["mol"] not in self.candidates:
+            raise ValueError(f'No candidates for the query molecule {item["mol"]}.')
+        item["candidates"] = self.candidates[item["mol"]]
+
+        # Save the original SMILES representations of the canidates (for evaluation)
+        item["candidates_smiles"] = item["candidates"]
+
+        # Create neg/pos label mask by matching the query molecule with the candidates
+        item_label = self.mol_label_transform(item["mol"])
+        item["labels"] = [
+            self.mol_label_transform(c) == item_label for c in item["candidates"]
+        ]
+
+        if not any(item["labels"]):
+            raise ValueError(
+                f'Query molecule {item["mol"]} not found in the candidates list.'
+            )
+
+        # Transform the query and candidate molecules
+        item["mol"] = self.mol_transform(item["mol"])
+        item["candidates"] = [self.mol_transform(c) for c in item["candidates"]]
+        if isinstance(item["mol"], np.ndarray):
+            item["mol"] = torch.as_tensor(item["mol"], dtype=self.dtype)
+            # item["candidates"] = [torch.as_tensor(c, dtype=self.dtype) for c in item["candidates"]]
+
+        return item

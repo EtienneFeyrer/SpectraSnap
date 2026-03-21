@@ -58,7 +58,15 @@ def get_test_ms_dataset(spectra_view: T.Union[str, T.List[str]],
     dataset_params = {'spectra_view': spectra_view, 'pth': params['dataset_pth'], 'spec_transform': spectra_featurizer, 'mol_transform': mol_featurizer, "candidates_pth": params['candidates_pth']}
 
     return jestr_datasets.ExpandedRetrievalDataset(**dataset_params)
-    
+
+def get_precompute_cand_dataset(mol_view: T.Union[str, T.List[str]],
+                 mol_featurizer: MolTransform,
+                 params):
+
+    dataset_params = {'spectra_view': spectra_view, 'pth': params['dataset_pth'], 'spec_transform': spectra_featurizer, 'mol_transform': mol_featurizer, "candidates_pth": params['candidates_pth']}
+
+    return jestr_datasets.# TODO ExpandedRetrievalDataset(**dataset_params)
+
 def get_ms_dataset(spectra_view: str,
                  mol_view: str,
                  spectra_featurizer: SpecTransform,

@@ -17,20 +17,14 @@ JESTR uses [PyTorch](https://pytorch.org). The released weights were trained on 
 ## **Quickstart**
 
 ### **1) Set up the environment**
-- Required packages are listed in `jestr_requirements.txt`.
-- We recommend a fresh Conda environment.
+- Required packages are listed in `environment.yaml`.
+- Create environment using conda
 
 ```bash
 # Create and activate environment
-conda create -n jestr -y python=3.10
+conda env create -f environment.yaml
 conda activate jestr
-
-# Install dependencies (pip)
-pip install -r jestr_requirements.txt
 ```
-
-If you prefer Conda-only workflows, use the versions pinned in `jestr_requirements.txt` as guidance. See Conda docs: `https://docs.conda.io/en/latest/`.
-
 
 ### **2) Prepare the data**
 - For a quick demo, use the provided sample under `data/sample/`:

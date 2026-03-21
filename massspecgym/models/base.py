@@ -27,9 +27,11 @@ class MassSpecGymModel(pl.LightningModule, ABC):
         self,
         lr: float = 1e-4,
         weight_decay: float = 0.0,
-        log_only_loss_at_stages: T.Sequence[Stage | str] = (),
+        #log_only_loss_at_stages: T.Sequence[Stage | str] = (), #not python 3.9 compatible
+        log_only_loss_at_stages: T.Sequence[T.Union[Stage, str]] = (),
         bootstrap_metrics: bool = True,
-        df_test_path: T.Optional[str | Path] = None,
+        #df_test_path: T.Optional[str | Path] = None,
+        df_test_path: T.Optional[T.Union[str, Path]] = None,
         *args,
         **kwargs
     ):

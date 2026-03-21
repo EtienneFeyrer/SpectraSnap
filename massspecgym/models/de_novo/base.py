@@ -58,7 +58,8 @@ class DeNovoMassSpecGymModel(MassSpecGymModel, ABC):
 
     def evaluate_de_novo_step(
         self,
-        mols_pred: list[list[T.Optional[Chem.Mol | str]]],
+        #mols_pred: list[list[T.Optional[Chem.Mol | str]]],
+        mols_pred: list[list[T.Optional[T.Union[Chem.Mol, str]]]],
         mol_true: list[str],
         stage: Stage,
     ) -> dict[str, torch.Tensor]:

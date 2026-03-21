@@ -1,7 +1,7 @@
 
 # Experiment setup 
 job_key: ''
-run_name: 'JESTR_sample_run'
+run_name: 'FAISS_sample_run_1'
 run_details: ""
 project_name: ''
 wandb_entity_name: 'mass-spec-ml'

@@ -151,8 +151,11 @@ class RetrievalDataset(MassSpecDataset):
 
         # Download candidates from HuggigFace Hub if not a path to exisiting file is passed
         if self.candidates_pth is None:
+            # self.candidates_pth = utils.hugging_face_download(
+            #     "molecules/MassSpecGym_retrieval_candidates_mass.json"
+            # )
             self.candidates_pth = utils.hugging_face_download(
-                "molecules/MassSpecGym_retrieval_candidates_mass.json"
+                "molecules/MassSpecGym_retrieval_candidates_formula.json"
             )
         elif isinstance(self.candidates_pth, str):
             if Path(self.candidates_pth).is_file():
@@ -223,69 +226,39 @@ class RetrievalDataset(MassSpecDataset):
 
 
 # TODO: Datasets for unlabeled data.
-class UnLabeledCandDataset(MassSpecDataset):
-    """
-    Dataset containing an unlabeled set of Candidates.
-    """
+class UnlabeledDataset(Dataset):
+    """Minimal validator: ensure JSON is a list and elements match expected_type.
+    has to be a list of strings(smiles) a list of list of strings (candidates) 
+    or a list of matchms.Spectrum objects (spectra)."""
     def __init__(
         self,
-        mol_label_transform: MolTransform = MolToInChIKey(),
-        candidates_pth: T.Optional[T.Union[Path, str]] = None,
-        **kwargs,
+        raw_pth: T.Union[str, Path],
+        expected_type: T.Optional[T.Union[matchms.Spectrum, T.List[str], str]] = None, 
+        item_fn: T.Optional[T.Callable[[T.List[T.Any], int], dict]] = None,
+        collate_fn: T.Optional[T.Callable[[T.Iterable[dict]], dict]] = None,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
+        if isinstance(raw_pth, str):
+            raw_pth = Path(raw_pth)
+        with open(raw_pth, "r") as fh:
+            raw = json.load(fh)
 
-        self.candidates_pth = candidates_pth
-        self.mol_label_transform = mol_label_transform
+        if not isinstance(raw, list):
+            raise ValueError("UnlabeledDataset expects a JSON list.")
+        # checks that all elements are of the expected type
+        if expected_type is not None and not all(isinstance(x, expected_type) for x in raw):
+            raise ValueError(f"Expected list elements of type {expected_type}.")
 
-        # Download candidates from HuggigFace Hub if not a path to exisiting file is passed
-        if self.candidates_pth is None:
-            self.candidates_pth = utils.hugging_face_download(
-                "molecules/MassSpecGym_retrieval_candidates_mass.json"
-            )
-        elif isinstance(self.candidates_pth, str):
-            if Path(self.candidates_pth).is_file():
-                self.candidates_pth = Path(self.candidates_pth)
-            else:
-                self.candidates_pth = utils.hugging_face_download(candidates_pth)
-        
-        # Read candidates_pth from json to dict: SMILES -> respective candidate SMILES
-        with open(self.candidates_pth, "r") as file:
-            # TODO: the candidates file should be adjusted so the candidates
-            # are no longer labeled (candidates have to be at the beginning of each list)
-            self.candidates = json.load(file)
+        self.raw = raw
+        self.data: T.List[T.Any] = raw
+        self._item_fn = item_fn or (lambda data, idx: {"item": data[idx], "index": idx})
+        self._collate_fn = collate_fn or (lambda b: default_collate(list(b)))
 
+    def __len__(self) -> int:
+        return len(self.data)
 
-    def __getitem__(self, i) -> dict:
-        item = super().__getitem__(i, transform_mol=False)
+    def __getitem__(self, idx: int) -> dict:
+        return self._item_fn(self.data, idx)
 
-        # Save the original SMILES representation of the query molecule (for evaluation)
-        item["smiles"] = item["mol"]
-
-        # Get candidates
-        if item["mol"] not in self.candidates:
-            raise ValueError(f'No candidates for the query molecule {item["mol"]}.')
-        item["candidates"] = self.candidates[item["mol"]]
-
-        # Save the original SMILES representations of the canidates (for evaluation)
-        item["candidates_smiles"] = item["candidates"]
-
-        # Create neg/pos label mask by matching the query molecule with the candidates
-        item_label = self.mol_label_transform(item["mol"])
-        item["labels"] = [
-            self.mol_label_transform(c) == item_label for c in item["candidates"]
-        ]
-
-        if not any(item["labels"]):
-            raise ValueError(
-                f'Query molecule {item["mol"]} not found in the candidates list.'
-            )
-
-        # Transform the query and candidate molecules
-        item["mol"] = self.mol_transform(item["mol"])
-        item["candidates"] = [self.mol_transform(c) for c in item["candidates"]]
-        if isinstance(item["mol"], np.ndarray):
-            item["mol"] = torch.as_tensor(item["mol"], dtype=self.dtype)
-            # item["candidates"] = [torch.as_tensor(c, dtype=self.dtype) for c in item["candidates"]]
-
-        return item
+    def collate_fn(self, batch: T.Iterable[dict]) -> dict:
+        return self._collate_fn(batch)

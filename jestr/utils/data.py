@@ -49,23 +49,38 @@ def get_mol_featurizer(molecule_view: T.Union[str, T.List[str]], params) -> MolT
     
     return mol_featurizer
 
+# def get_test_ms_dataset(spectra_view: T.Union[str, T.List[str]],
+#                  mol_view: T.Union[str, T.List[str]],
+#                  spectra_featurizer: SpecTransform,
+#                  mol_featurizer: MolTransform,
+#                  params):
+
+#     dataset_params = {'spectra_view': spectra_view, 'pth': params['dataset_pth'], 'spec_transform': spectra_featurizer, 'mol_transform': mol_featurizer, "candidates_pth": params['candidates_pth']}
+
+#     return jestr_datasets.ExpandedRetrievalDataset(**dataset_params)
+
 def get_test_ms_dataset(spectra_view: T.Union[str, T.List[str]],
                  mol_view: T.Union[str, T.List[str]],
                  spectra_featurizer: SpecTransform,
                  mol_featurizer: MolTransform,
                  params):
+    """Get dataset for testing - if both spectra and molecule featurizers
+are provided, return a dataset that uses both. If only one is provided,
+return a dataset that uses only one featurizer for testing and TODO: Wrapper Methods"""
+    # If only spectra are provided (no molecule featurizer), return a spectra-only dataset if available
+    if mol_featurizer is None and hasattr(jestr_datasets, "JESTR1_MassSpecDataset"):
+        # JESTR1_MassSpecDataset expects spec_transform and spectra_view
+        spec_only_params = {'pth': params['dataset_pth'], 'spec_transform': spectra_featurizer, 'spectra_view': spectra_view}
+        return jestr_datasets.JESTR1_MassSpecDataset(**spec_only_params)
 
+    # If only molecules are provided (no spectra featurizer), try to return a precompute/candidate-only dataset
+    if spectra_featurizer is None and hasattr(jestr_datasets, "CandidatesDataset"):
+        cand_params = {'mol_transform': mol_featurizer, 'candidates_pth': params['candidates_pth']}
+        return jestr_datasets.CandidatesDataset(**cand_params)
+    
     dataset_params = {'spectra_view': spectra_view, 'pth': params['dataset_pth'], 'spec_transform': spectra_featurizer, 'mol_transform': mol_featurizer, "candidates_pth": params['candidates_pth']}
-
+    # Default: retrieval dataset that uses both transforms
     return jestr_datasets.ExpandedRetrievalDataset(**dataset_params)
-
-def get_precompute_cand_dataset(mol_view: T.Union[str, T.List[str]],
-                 mol_featurizer: MolTransform,
-                 params):
-
-    dataset_params = {'spectra_view': spectra_view, 'pth': params['dataset_pth'], 'spec_transform': spectra_featurizer, 'mol_transform': mol_featurizer, "candidates_pth": params['candidates_pth']}
-
-    return jestr_datasets.# TODO ExpandedRetrievalDataset(**dataset_params)
 
 def get_ms_dataset(spectra_view: str,
                  mol_view: str,

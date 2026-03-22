@@ -171,3 +171,4 @@ dependencies:
     - torch-geometric==2.4.0
     - torch-scatter==2.1.2   #removed to conda-forge channel because pip failed
     - pytorch-lightning==2.1.0
+    - huggingface-hub==1.7.2

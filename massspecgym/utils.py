@@ -18,7 +18,7 @@ from pathlib import Path
 from rdkit.Chem import AllChem as Chem
 from rdkit.Chem import DataStructs, Draw
 from rdkit.Chem.Descriptors import ExactMolWt
-# from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download
 # from standardizeUtils.standardizeUtils import (
 #     standardize_structure_with_pubchem,
 #     standardize_structure_list_with_pubchem,

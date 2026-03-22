@@ -1,3 +1,4 @@
+import matchms
 import pandas as pd
 import json
 import typing as T
@@ -10,7 +11,7 @@ from torch.utils.data.dataloader import default_collate
 import dgl
 from collections import defaultdict
 from massspecgym.data.transforms import SpecTransform, MolTransform, MolToInChIKey
-from massspecgym.data.datasets import MassSpecDataset
+from massspecgym.data.datasets import MassSpecDataset, UnlabeledDataset
 import jestr.utils.data as data_utils
 from torch.nn.utils.rnn import pad_sequence
 from massspecgym.models.base import Stage
@@ -134,7 +135,20 @@ class ExpandedRetrievalDataset:
 
         self.candidates_pth = candidates_pth
         self.mol_label_transform = mol_label_transform
-        
+
+        # resolve/download candidates file if not provided similar to RetrievalDataset from massspecgym
+        if self.candidates_pth is None:
+            # default to the formula candidates file (same as RetrievalDataset)
+            self.candidates_pth = utils.hugging_face_download(
+                "molecules/MassSpecGym_retrieval_candidates_formula.json"
+            )
+        elif isinstance(self.candidates_pth, str):
+            if Path(self.candidates_pth).is_file():
+                self.candidates_pth = Path(self.candidates_pth)
+            else:
+                # allow passing a relative hf path string to download
+                self.candidates_pth = utils.hugging_face_download(self.candidates_pth)
+
         # Read candidates_pth from json to dict: SMILES -> respective candidate SMILES
         with open(self.candidates_pth, "r") as file:
             candidates = json.load(file)
@@ -186,17 +200,82 @@ class ExpandedRetrievalDataset:
         item['label'] = label
         return item
 
-class PrecomputeCandDataset(ExpandedRetrievalDataset):
-    '''Dataset for precomputing candidate embeddings. Each item is a list of candidate molecules.'''
-    # TODO: check weather this class is neccessary or using the massspec Precomputedataset is enough
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.cand_smiles = list(set([cand for _, cand, _ in self.spec_cand]))
-    
+#TODO: Datasets for precomputation and online testing 
+class PrecomputeCandDataset(UnlabeledDataset):
+    """Dataset for precomputing candidate embeddings.
+       Inherits from UnlabeledDataset.
+    - Builds a stable unique list of candidate SMILES from the base UnlabeledDataset.
+    - Removes candidates containing '.' (dot-containing entries are always filtered dots lead to error in mol_transform).
+    - Applies mol_transform per-item when returned.
+    """
+    def __init__(self, mol_transform: T.Optional[MolTransform] = None, **kwargs):
+        # kwargs are passed to the base UnlabeledDataset (expects candidates_pth, keys_order, ...)
+        super().__init__(**kwargs, expected_type=list)
+        self.mol_transform = mol_transform
+
+        # Build stable unique list while preserving first-seen order
+        seen = set()
+        unique_ordered = []
+        # UnlabeledDataset stores the loaded JSON in self.data (list-of-lists expected)
+        for cand_list in self.data:
+            for c in cand_list:
+                # Always skip dot-containing candidate entries
+                if "." in c:
+                    continue
+                if c not in seen:
+                    seen.add(c)
+                    unique_ordered.append(c)
+        self.cand_smiles = unique_ordered
+
     def __len__(self):
         return len(self.cand_smiles)
-    
+
     def __getitem__(self, i):
         cand_smiles = self.cand_smiles[i]
-        item = {'cand': self.mol_transform(cand_smiles), 'cand_smiles': cand_smiles}
-        return item
+        if self.mol_transform is not None:
+            transformed = self.mol_transform(cand_smiles)
+            # convert numpy arrays to torch tensors for convenience
+            if isinstance(transformed, np.ndarray):
+                transformed = torch.as_tensor(transformed)
+        else:
+            transformed = cand_smiles
+        return {"cand": transformed, "cand_smiles": cand_smiles}
+
+
+class SpecDataset(UnlabeledDataset):
+    """Dataset for online spectrum embedding computation 
+    or TODO: Wrapper Method in training.
+       Inherits from UnlabeledDataset.
+    - Builds a list of spectra items from the base UnlabeledDataset.
+    - Spectrum items are dicts containing all neccessary information.
+    - Applies spec_transform per-item when returned.
+    """
+    def __init__(self, spec_transform: T.Optional[SpecTransform] = None, **kwargs):
+        # kwargs are passed to the base UnlabeledDataset (expects dataset_pth, keys_order, ...)
+        super().__init__(**kwargs, expected_type=matchms.Spectrum)
+        self.spec_transform = spec_transform
+        # UnlabeledDataset stores the loaded list directly in self.data
+        self.spectra = self.data
+
+    def __len__(self):
+        return len(self.spectra)
+
+    def __getitem__(self, i):
+        spec = self.spectra[i]
+        if self.spec_transform is not None:
+            transformed = self.spec_transform(spec)
+            # convert numpy arrays to torch tensors for convenience
+            if isinstance(transformed, np.ndarray):
+                transformed = torch.as_tensor(transformed)
+        else:
+            transformed = spec
+        # metadata not available for plain unlabeled spectra; return index as identifier
+        return {"spec": transformed, "spec_id": i}
+
+
+class CandDataset(UnlabeledDataset):
+    """Dataset for unlabelled candidates for a Wrapper Method
+    that produces pseudo labels for contrastive learning."""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs, expected_type=str)
+    # TODO: Wrapper Method in training.

@@ -241,7 +241,7 @@ class UnlabeledDataset(Dataset):
         if isinstance(raw_pth, str):
             raw_pth = Path(raw_pth)
         with open(raw_pth, "r") as fh:
-            raw = json.load(fh)
+            raw = self.json_load(raw_pth)
 
         if not isinstance(raw, list):
             raise ValueError("UnlabeledDataset expects a JSON list.")
@@ -253,6 +253,9 @@ class UnlabeledDataset(Dataset):
         self.data: T.List[T.Any] = raw
         self._item_fn = item_fn or (lambda data, idx: {"item": data[idx], "index": idx})
         self._collate_fn = collate_fn or (lambda b: default_collate(list(b)))
+    def json_load(self, pth: Path) -> T.List[T.Any]:
+        with open(pth, "r") as fh:
+            return json.load(fh)
 
     def __len__(self) -> int:
         return len(self.data)

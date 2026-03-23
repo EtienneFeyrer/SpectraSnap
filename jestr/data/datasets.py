@@ -1,4 +1,6 @@
 import matchms
+from matchms.importing import load_from_json
+from matchms import Spectrum
 import pandas as pd
 import json
 import typing as T
@@ -288,6 +290,9 @@ class SpecDataset(UnlabeledDataset):
         self.spec_transform = spec_transform
         # UnlabeledDataset stores the loaded list directly in self.data
         self.spectra = self.data
+
+    def json_load(self, pth: Path) -> T.List[matchms.Spectrum]:
+        return list(load_from_json(pth))
 
     def __len__(self):
         return len(self.spectra)

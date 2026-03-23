@@ -120,6 +120,7 @@ dependencies:
   - pyparsing=3.1.1
   - pysocks=1.7.1
   - pyteomics=4.7.1
+  - pytest=8.4.1        #newly added
   - python=3.9.0
   - python-dateutil=2.8.2
   - python-tzdata=2023.3
@@ -171,4 +172,4 @@ dependencies:
     - torch-geometric==2.4.0
     - torch-scatter==2.1.2   #removed to conda-forge channel because pip failed
     - pytorch-lightning==2.1.0
-    - huggingface-hub==1.7.2
+    - huggingface-hub==1.7.2 # newly added 

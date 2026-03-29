@@ -7,6 +7,7 @@ import matchms
 import massspecgym.utils as utils
 from pathlib import Path
 from rdkit import Chem
+import traceback
 from torch.utils.data.dataset import Dataset
 from torch.utils.data.dataloader import default_collate
 from matchms.importing import load_from_mgf
@@ -27,6 +28,7 @@ class MassSpecDataset(Dataset):
         pth: T.Optional[Path] = None,
         return_mol_freq: bool = True,
         return_identifier: bool = True,
+        identifiers_subset: T.Optional[T.List[str]] = None,
         dtype: T.Type = torch.float32
     ):
         """
@@ -38,8 +40,16 @@ class MassSpecDataset(Dataset):
         self.spec_transform = spec_transform
         self.mol_transform = mol_transform
         self.return_mol_freq = return_mol_freq
+        self.return_identifier = return_identifier
+        self.identifiers_subset = identifiers_subset
+        self.dtype = dtype
+        self.load_data()
+        self.compute_mol_freq()
+
+    def load_data(self):
 
         if self.pth is None:
+            print("No path provided for mass spectrum dataset. Downloading MassSpecGym dataset from HuggingFace Hub...")
             self.pth = utils.hugging_face_download("MassSpecGym.tsv")
 
         if isinstance(self.pth, str):
@@ -59,18 +69,21 @@ class MassSpecDataset(Dataset):
             )
             self.metadata = self.metadata.drop(columns=["mzs", "intensities"])
         elif self.pth.suffix == ".mgf":
-            self.spectra = list(load_from_mgf(str(self.pth)))
+            self.spectra = pd.Series(list(load_from_mgf(str(self.pth))))
             self.metadata = pd.DataFrame([s.metadata for s in self.spectra])
         else:
             raise ValueError(f"{self.pth.suffix} file format not supported.")
         
+        if self.identifiers_subset is not None:
+            self.metadata = self.metadata[self.metadata["identifier"].isin(self.identifiers_subset)]
+            self.spectra = self.spectra[self.metadata.index].reset_index(drop=True)
+            self.metadata = self.metadata.reset_index(drop=True)
+
+    def compute_mol_freq(self):
         if self.return_mol_freq:
             if "inchikey" not in self.metadata.columns:
                 self.metadata["inchikey"] = self.metadata["smiles"].apply(utils.smiles_to_inchi_key)
             self.metadata["mol_freq"] = self.metadata.groupby("inchikey")["inchikey"].transform("count")
-
-        self.return_identifier = return_identifier
-        self.dtype = dtype
 
     def __len__(self) -> int:
         return len(self.spectra)
@@ -104,9 +117,9 @@ class MassSpecDataset(Dataset):
             item["mol"] = mol
 
         # Add other metadata to the item
-        # item.update({
-        #     k: metadata[k] for k in ["precursor_mz", "adduct"]
-        # })
+        item.update({
+            k: metadata[k] for k in ["precursor_mz", "adduct"]
+        })
 
         if self.return_mol_freq:
             item["mol_freq"] = metadata["mol_freq"]
@@ -117,10 +130,7 @@ class MassSpecDataset(Dataset):
         # TODO: this should be refactored
         for k, v in item.items():
             if not isinstance(v, str):
-                try:
-                    item[k] = torch.as_tensor(v, dtype=self.dtype)
-                except:
-                    continue 
+                item[k] = torch.as_tensor(v, dtype=self.dtype)
 
         return item
 
@@ -130,6 +140,7 @@ class MassSpecDataset(Dataset):
         Custom collate function to handle the outputs of __getitem__.
         """
         return default_collate(batch)
+
 
 
 class RetrievalDataset(MassSpecDataset):

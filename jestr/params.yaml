@@ -22,8 +22,8 @@ split_pth: ''
 
 # Data paths
 candidate_file_key: "identifier" # "smiles"
-candidates_pth: ../data/sample/identifier_to_candidates.json
-dataset_pth: "../data/sample/data.tsv" 
+candidates_pth:  #"../data/sample/identifier_to_candidates.json"
+dataset_pth: #"../data/sample/spectra_metadata_test.tsv" # "../data/sample/data.tsv"
 
 # General hyperparameters
 batch_size: 64

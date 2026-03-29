@@ -123,6 +123,117 @@ class ContrastiveDataset(Dataset):
     
  
 
+# class ExpandedRetrievalDataset:
+#     '''Used for testing only 
+#     Assumes 'fold' column defines the split'''
+#     def __init__(self,
+#                  mol_label_transform: MolTransform = MolToInChIKey(),
+#                  candidates_pth: T.Optional[T.Union[Path, str]] = None,
+#                  candidate_file_key: str = "smiles",
+#                 **kwargs):
+        
+#         self.instance = JESTR1_MassSpecDataset(**kwargs, return_mol_freq=False)
+#         # super().__init__(**kwargs)
+
+#         self.candidates_pth = candidates_pth
+#         self.mol_label_transform = mol_label_transform
+
+#         # resolve/download candidates file if not provided similar to RetrievalDataset from massspecgym
+#         if self.candidates_pth is None:
+#             # default to the formula candidates file (same as RetrievalDataset)
+#             self.candidates_pth = utils.hugging_face_download(
+#                 "molecules/MassSpecGym_retrieval_candidates_formula.json"
+#             )
+#         elif isinstance(self.candidates_pth, str):
+#             if Path(self.candidates_pth).is_file():
+#                 self.candidates_pth = Path(self.candidates_pth)
+#             else:
+#                 # allow passing a relative hf path string to download
+#                 self.candidates_pth = utils.hugging_face_download(self.candidates_pth)
+
+#         # Read candidates_pth from json to dict: SMILES -> respective candidate SMILES
+#         with open(self.candidates_pth, "r") as file:
+#             candidates = json.load(file)
+
+#         self.candidates = {}
+#         for s, cand in candidates.items():
+#             self.candidates[s] = [c for c in cand if '.' not in c]
+        
+#         self.spec_cand = [] #(spec index, cand_smiles, true_label)
+
+#         #We can assume that metadata has smiles and identifiers
+#         # official massspecdataset contains identifiers and smiles
+#         if 'smiles' not in self.metadata.columns or candidate_file_key == "identifierss":
+#             if not isinstance(self.metadata.iloc[0]['identifier'], str):
+#                 self.metadata['smiles'] = self.metadata['identifier'].apply(str)
+#             else:
+#                 self.metadata['smiles'] = self.metadata['identifier']
+
+#         # only keep test spectra whose SMILES occur exactly once in the whole metadata
+#         test_meta = self.metadata[self.metadata['fold'] == "test"].copy()
+#         smiles_counts = self.metadata['smiles'].value_counts()
+#         unique_test_meta = test_meta.drop_duplicates(subset=['smiles'], keep='first')
+
+
+#         test_smiles = unique_test_meta['smiles'].tolist()
+#         test_ms_id = unique_test_meta['identifier'].tolist()
+
+#         spec_id_to_index = dict(zip(self.metadata['identifier'], self.metadata.index))
+        
+#         new_meta_entries = []
+#         new_spectra = []
+#         # produces candidate list where the target molecule is
+#         # the first entry with label True followed by the rest
+#         # of the candidates with label False  
+#         old_indices = [spec_id_to_index[spec_id] for spec_id in test_ms_id]
+#         old_to_new = {old: new for new, old in enumerate(old_indices)}
+#         for spec_id, s in zip(test_ms_id, test_smiles):
+#             candidates = self.candidates[s]
+#             # mol_label_transform produces a canonical label
+#             #mol_label = self.mol_label_transform(s)
+#             #labels = [self.mol_label_transform(c) == mol_label for c in candidates]
+#             # remove target from candidates to avoid duplicates; will be added back with label True
+#             candidates = [c for c in candidates if c != s] 
+#             if len(candidates) == 0:
+#                 #print(f"Skipping {spec_id}; empty candidate set")
+#                 continue
+#             old_idx = spec_id_to_index[spec_id]
+#             new_idx = old_to_new[old_idx]
+
+#             self.spec_cand.append((new_idx, s, True))
+#             self.spec_cand.extend(
+#                 (new_idx, c, False)
+#                 for c in candidates
+#             )
+#             # add new metadata entry
+#             new_meta_entries.append({
+#                 "identifier": spec_id,
+#                 "smiles": s,
+#                 "fold": "test",
+#                 "precursor_mz": self.metadata.loc[old_idx, "precursor_mz"],
+#             })
+#             new_spectra.append(self.spectra[spec_id_to_index[spec_id]])
+#         # reduce the metadata and spectra to only include spectra with found candidates
+#         self.metadata = pd.DataFrame(new_meta_entries)
+#         self.spectra = new_spectra
+
+#     def __getattr__(self, name):
+#         return self.instance.__getattribute__(name)
+    
+#     def __len__(self):
+#         return len(self.spec_cand)
+
+#     def __getitem__(self, i):
+#         spec_i = self.spec_cand[i][0]
+#         cand_smiles = self.spec_cand[i][1]
+#         label = self.spec_cand[i][2]
+
+#         item = self.instance.__getitem__(spec_i, transform_mol=False)
+#         item['cand'] = self.mol_transform(cand_smiles)
+#         item['cand_smiles'] = cand_smiles
+#         item['label'] = label
+#         return item
+
 class ExpandedRetrievalDataset:
     '''Used for testing only 
     Assumes 'fold' column defines the split'''
@@ -135,12 +246,15 @@ class ExpandedRetrievalDataset:
         self.instance = JESTR1_MassSpecDataset(**kwargs, return_mol_freq=False)
         # super().__init__(**kwargs)
 
+        print("Parent calss metadata columns:", self.metadata.columns.tolist())
+
         self.candidates_pth = candidates_pth
         self.mol_label_transform = mol_label_transform
-
-        # resolve/download candidates file if not provided similar to RetrievalDataset from massspecgym
+        
+        #resolve/download candidates file if not provided similar to RetrievalDataset from massspecgym
         if self.candidates_pth is None:
             # default to the formula candidates file (same as RetrievalDataset)
+            print("No path provided downloads from hugging face and stores file in .cache/huggingface/datasets/molecules/MassSpecGym_retrieval_candidates_formula.json")
             self.candidates_pth = utils.hugging_face_download(
                 "molecules/MassSpecGym_retrieval_candidates_formula.json"
             )
@@ -156,68 +270,57 @@ class ExpandedRetrievalDataset:
             candidates = json.load(file)
 
         self.candidates = {}
+        # s is the key here smiles
         for s, cand in candidates.items():
             self.candidates[s] = [c for c in cand if '.' not in c]
         
         self.spec_cand = [] #(spec index, cand_smiles, true_label)
 
-        #We can assume that metadata has smiles and identifiers
-        # official massspecdataset
-        # if 'smiles' not in self.metadata.columns or candidate_file_key == "identifierss":
-        #     if not isinstance(self.metadata.iloc[0]['identifier'], str):
-        #         self.metadata['smiles'] = self.metadata['identifier'].apply(str)
-        #     else:
-        #         self.metadata['smiles'] = self.metadata['identifier']
+        # this checks if we have to work with identifiers
+        if 'smiles' not in self.metadata.columns or candidate_file_key == "identifierss":
+            if not isinstance(self.metadata.iloc[0]['identifier'], str):
+                self.metadata['smiles'] = self.metadata['identifier'].apply(str)
+            else:
+                self.metadata['smiles'] = self.metadata['identifier']
+        
+        
+        test_smiles = self.metadata[self.metadata['fold'] == "test"]['smiles'].tolist()
+        test_ms_id = self.metadata[self.metadata['fold'] == "test"]['identifier'].tolist()
+        # only keep test first occuring spectra for each smiles (to avoid duplicates in test set)
+        appeared_smiles = set()
+        unique_test_smiles = []
+        unique_test_ms_id = []
+        for i, (smiles, spec_id) in enumerate(zip(test_smiles, test_ms_id)):
+            if smiles not in appeared_smiles:
+                appeared_smiles.add(smiles)
+                unique_test_smiles.append(smiles)
+                unique_test_ms_id.append(spec_id)
 
-        # only keep test spectra whose SMILES occur exactly once in the whole metadata
-        test_meta = self.metadata[self.metadata['fold'] == "test"].copy()
-        smiles_counts = self.metadata['smiles'].value_counts()
-        unique_test_meta = test_meta.drop_duplicates(subset=['smiles'], keep='first')
-
-
-        test_smiles = unique_test_meta['smiles'].tolist()
-        test_ms_id = unique_test_meta['identifier'].tolist()
 
         spec_id_to_index = dict(zip(self.metadata['identifier'], self.metadata.index))
-        
-        new_meta_entries = []
-        new_spectra = []
-        # produces candidate list where the target molecule is
-        # the first entry with label True followed by the rest
-        # of the candidates with label False  
-        old_indices = [spec_id_to_index[spec_id] for spec_id in test_ms_id]
-        old_to_new = {old: new for new, old in enumerate(old_indices)}
-        for spec_id, s in zip(test_ms_id, test_smiles):
+        for spec_id, s in zip(unique_test_ms_id, unique_test_smiles):
             candidates = self.candidates[s]
-            # mol_label_transform produces a canonical label
-            #mol_label = self.mol_label_transform(s)
-            #labels = [self.mol_label_transform(c) == mol_label for c in candidates]
-            # remove target from candidates to avoid duplicates; will be added back with label True
-            candidates = [c for c in candidates if c != s] 
+            # mol_label = self.mol_label_transform(s)
+            # labels = [self.mol_label_transform(c) == mol_label for c in candidates]
+            #remove target
+            candidates = [c for c in candidates if c != s]
+
+            labels = [c == s for c in candidates]
             if len(candidates) == 0:
-                #print(f"Skipping {spec_id}; empty candidate set")
+                print(f"Skipping {spec_id}; empty candidate set")
                 continue
-            old_idx = spec_id_to_index[spec_id]
-            new_idx = old_to_new[old_idx]
+            # if not any(labels):
+            #     print(f"Target smiles not in candidate set")
 
-            self.spec_cand.append((new_idx, s, True))
-            self.spec_cand.extend(
-                (new_idx, c, False)
-                for c in candidates
-            )
-            # add new metadata entry
-            new_meta_entries.append({
-                "identifier": spec_id,
-                "smiles": s,
-                "fold": "test",
-                "precursor_mz": self.metadata.loc[old_idx, "precursor_mz"],
-            })
-            new_spectra.append(self.spectra[spec_id_to_index[spec_id]])
-        # reduce the metadata and spectra to only include spectra with found candidates
-        self.metadata = pd.DataFrame(new_meta_entries)
-        self.spectra = new_spectra
-
+            #add target as first candidate with label True
+            new_entry = [(spec_id_to_index[spec_id], s, True)]
+            new_entry.extend([(spec_id_to_index[spec_id], candidates[j], k) for j, k in enumerate(labels)])
+            
+            # spectrum index with candidates with labels
+            self.spec_cand.extend(new_entry)
+    
     def __getattr__(self, name):
+        #accesing any attribute not found from parent class
         return self.instance.__getattribute__(name)
     
     def __len__(self):

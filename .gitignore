@@ -1,2 +1,4 @@
 # ignore json files in data/sample/*.json
 data/sample/*.json
+#ignore all files in experiments directory
+experiments/*

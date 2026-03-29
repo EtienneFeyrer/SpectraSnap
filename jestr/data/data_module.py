@@ -4,6 +4,9 @@ from jestr.data.datasets import ContrastiveDataset
 from functools import partial
 from massspecgym.models.base import Stage
 
+#TODO: extend this TestDataModule to support unlabeled data for precomputing
+# and online testing
+# think about the stages and weather they are required or not
 class TestDataModule(MassSpecDataModule):
     def __init__(
             self,
@@ -19,10 +22,15 @@ class TestDataModule(MassSpecDataModule):
     def setup(self, stage=None):
         if stage == "test":
             self.test_dataset = self.dataset
+        elif stage == "precompute":
+            self.test_dataset = self.dataset
+        elif stage == "online_test":
+            self.test_dataset = self.dataset
         else:
             raise Exception("Data module supports test set only")
 
     def test_dataloader(self):
+        #TODO this has to be changed to support the precompute
         return DataLoader(
             self.test_dataset,
             batch_size=self.batch_size,

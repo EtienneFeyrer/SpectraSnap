@@ -124,6 +124,21 @@ class ContrastiveModel(RetrievalMassSpecGymModel):
         sorted_candidates = candidates[sorted_indices]
         sorted_scores = scores[sorted_indices]
         return sorted_candidates.tolist(), sorted_scores.tolist()
+
+    def _sort_candidates_with_labels(self, scores, candidates, labels):
+        scores = np.array(scores)
+        candidates = np.array(candidates)
+        labels = np.array(labels, dtype=bool)
+
+        sorted_indices = np.argsort(scores)[::-1]
+        sorted_candidates = candidates[sorted_indices].tolist()
+        sorted_scores = scores[sorted_indices].tolist()
+        sorted_labels = labels[sorted_indices].tolist()
+
+        target_candidate = candidates[labels][0] if labels.any() else None
+        rank = int(np.argmax(sorted_labels)) + 1 if any(sorted_labels) else -1
+
+        return sorted_candidates, sorted_scores, sorted_labels, target_candidate, rank
     
     def on_test_epoch_end(self) -> None:
 
@@ -134,9 +149,34 @@ class ContrastiveModel(RetrievalMassSpecGymModel):
             self.df_test['rank'] = self.df_test.apply(lambda row: self._compute_rank(row['scores'], row['labels']), axis=1)
 
         else:
-
-            self.df_test['sorted_candidates'], self.df_test['sorted_scores'] = zip(*self.df_test.apply(lambda row: self._sort_candidates(row['scores'], row['candidates']), axis=1))
-            self.df_test = self.df_test[['identifier', 'sorted_candidates', 'sorted_scores']]
+            (
+                self.df_test['sorted_candidates'],
+                self.df_test['sorted_scores'],
+                self.df_test['sorted_labels'],
+                self.df_test['target_candidate'],
+                self.df_test['rank'],
+            ) = zip(*self.df_test.apply(
+                lambda row: self._sort_candidates_with_labels(
+                    row['scores'], row['candidates'], row['labels']
+                ),
+                axis=1,
+            ))
+            self.df_test['hit_rate@1'] = (self.df_test['rank'] <= 1).astype(int)
+            self.df_test['hit_rate@5'] = (self.df_test['rank'] <= 5).astype(int)
+            self.df_test['hit_rate@20'] = (self.df_test['rank'] <= 20).astype(int)
+            self.df_test = self.df_test[
+                [
+                    'identifier',
+                    'sorted_candidates',
+                    'sorted_scores',
+                    'sorted_labels',
+                    'target_candidate',
+                    'rank',
+                    'hit_rate@1',
+                    'hit_rate@5',
+                    'hit_rate@20',
+                ]
+            ]
         self.df_test.to_pickle(self.df_test_path)
 
     def get_checkpoint_monitors(self) -> T.List[dict]:

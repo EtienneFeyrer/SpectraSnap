@@ -59,6 +59,7 @@ def get_mol_featurizer(molecule_view: T.Union[str, T.List[str]], params) -> MolT
 
 #     return jestr_datasets.ExpandedRetrievalDataset(**dataset_params)
 
+
 def get_test_ms_dataset(spectra_view: T.Union[str, T.List[str]],
                  mol_view: T.Union[str, T.List[str]],
                  spectra_featurizer: SpecTransform,
@@ -79,6 +80,7 @@ return a dataset that uses only one featurizer for testing and TODO: Wrapper Met
         return jestr_datasets.CandidatesDataset(**cand_params)
     
     dataset_params = {'spectra_view': spectra_view, 'pth': params['dataset_pth'], 'spec_transform': spectra_featurizer, 'mol_transform': mol_featurizer, "candidates_pth": params['candidates_pth']}
+    #dataset_params = {'spectra_view': spectra_view, 'spec_transform': spectra_featurizer, 'mol_transform': mol_featurizer}
     # Default: retrieval dataset that uses both transforms
     return jestr_datasets.ExpandedRetrievalDataset(**dataset_params)
 

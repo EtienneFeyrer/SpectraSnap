@@ -44,7 +44,7 @@ def main(params):
     mol_featurizer = get_mol_featurizer(params['molecule_view'], params)
     dataset = get_test_ms_dataset(params['spectra_view'], params['molecule_view'], spec_featurizer, mol_featurizer, params)
 
-    # Init data module
+    # Init data module for precomputation and testing
     collate_fn = partial(ContrastiveDataset.collate_fn, spec_enc=params['spec_enc'], spectra_view=params['spectra_view'], stage=Stage.TEST)
     data_module = TestDataModule(
         dataset=dataset,
